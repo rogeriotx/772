@@ -20,9 +20,9 @@
 #ifndef FS_DEFINITIONS_H_877452FEC245450C9F96B8FD268D8963
 #define FS_DEFINITIONS_H_877452FEC245450C9F96B8FD268D8963
 
-static constexpr auto STATUS_SERVER_NAME = "The Forgotten Server";
-static constexpr auto STATUS_SERVER_VERSION = "1.5 (Nekiro's 7.72 downgrade)";
-static constexpr auto STATUS_SERVER_DEVELOPERS = "Mark Samman";
+static constexpr auto STATUS_SERVER_NAME = "Lushland Oasis";
+static constexpr auto STATUS_SERVER_VERSION = "1.0)";
+static constexpr auto STATUS_SERVER_DEVELOPERS = "Volearen";
 
 static constexpr auto CLIENT_VERSION_MIN = 760;
 static constexpr auto CLIENT_VERSION_MAX = 772;

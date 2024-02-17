@@ -572,7 +572,7 @@ class Player final : public Creature, public Cylinder
 		void onWalkComplete() override;
 
 		void stopWalk();
-		void openShopWindow(Npc* npc, const std::list<ShopInfo>& shop);
+		void openShopWindow(const std::list<ShopInfo>& shop);
 		bool closeShopWindow(bool sendCloseShopWindow = true);
 		bool updateSaleShopList(const Item* item);
 		bool hasShopItemForSale(uint32_t itemId, uint8_t subType) const;
@@ -997,9 +997,9 @@ class Player final : public Creature, public Cylinder
 				client->sendToChannel(creature, type, text, channelId);
 			}
 		}
-		void sendShop(Npc* npc) const {
+		void sendShop() const {
 			if (client) {
-				client->sendShop(npc, shopItemList);
+				client->sendShop(shopItemList);
 			}
 		}
 		void sendSaleItemList() const {

@@ -153,6 +153,18 @@ void ProtocolGame::release()
 
 void ProtocolGame::login(const std::string& name, uint32_t accountId, OperatingSystem_t operatingSystem)
 {
+
+
+	// OTCv8 features and extended opcodes
+	if (otclientV8 || operatingSystem >= CLIENTOS_OTCLIENT_LINUX) {
+		if (otclientV8)
+			sendFeatures();
+		NetworkMessage opcodeMessage;
+		opcodeMessage.addByte(0x32);
+		opcodeMessage.addByte(0x00);
+		opcodeMessage.add<uint16_t>(0x00);
+		writeToOutputBuffer(opcodeMessage);
+	}
 	//dispatcher thread
 	Player* foundPlayer = g_game.getPlayerByName(name);
 	if (!foundPlayer || g_config.getBoolean(ConfigManager::ALLOW_CLONES)) {
@@ -349,13 +361,14 @@ void ProtocolGame::onRecvFirstMessage(NetworkMessage& msg)
 	enableXTEAEncryption();
 	setXTEAKey(std::move(key));
 
+	/*
 	if (operatingSystem >= CLIENTOS_OTCLIENT_LINUX) {
 		NetworkMessage opcodeMessage;
 		opcodeMessage.addByte(0x32);
 		opcodeMessage.addByte(0x00);
 		opcodeMessage.add<uint16_t>(0x00);
 		writeToOutputBuffer(opcodeMessage);
-	}
+	}*/
 
 	msg.skipBytes(1); // gamemaster flag
 
@@ -405,6 +418,12 @@ void ProtocolGame::onRecvFirstMessage(NetworkMessage& msg)
 		disconnect();
 		return;
 	}*/
+
+	// OTCv8 version detection
+	uint16_t otcV8StringLength = msg.get<uint16_t>();
+	if (otcV8StringLength == 5 && msg.getString(5) == "OTCv8") {
+		otclientV8 = msg.get<uint16_t>(); // 253, 260, 261, ...
+	}
 
 	if (version < CLIENT_VERSION_MIN || version > CLIENT_VERSION_MAX) {
 		disconnectClient(fmt::format("Only clients with protocol {:s} allowed!", CLIENT_VERSION_STR));
@@ -862,8 +881,8 @@ void ProtocolGame::parseSetOutfit(NetworkMessage& msg)
 	newOutfit.lookBody = msg.getByte();
 	newOutfit.lookLegs = msg.getByte();
 	newOutfit.lookFeet = msg.getByte();
-	//newOutfit.lookAddons = msg.getByte();
-	//newOutfit.lookMount = msg.get<uint16_t>();
+	newOutfit.lookAddons = msg.getByte();
+	newOutfit.lookMount = msg.get<uint16_t>();
 	addGameTask(&Game::playerChangeOutfit, player->getID(), newOutfit);
 }
 
@@ -1629,14 +1648,13 @@ void ProtocolGame::sendContainer(uint8_t cid, const Container* container, bool h
 	writeToOutputBuffer(msg);
 }
 
-void ProtocolGame::sendShop(Npc* npc, const ShopInfoList& itemList)
+void ProtocolGame::sendShop(const ShopInfoList& itemList)
 {
 	NetworkMessage msg;
 	msg.addByte(0x7A);
-	msg.addString(npc->getName());
 
 	uint16_t itemsToSend = std::min<size_t>(itemList.size(), std::numeric_limits<uint16_t>::max());
-	msg.add<uint16_t>(itemsToSend);
+	msg.addByte(itemsToSend);
 
 	uint16_t i = 0;
 	for (auto it = itemList.begin(); i < itemsToSend; ++it, ++i) {
@@ -1657,7 +1675,7 @@ void ProtocolGame::sendSaleItemList(const std::list<ShopInfo>& shop)
 {
 	NetworkMessage msg;
 	msg.addByte(0x7B);
-	msg.add<uint64_t>(player->getMoney() + player->getBankBalance());
+	msg.add<uint32_t>(player->getMoney());
 
 	std::map<uint16_t, uint32_t> saleMap;
 
@@ -1680,7 +1698,8 @@ void ProtocolGame::sendSaleItemList(const std::list<ShopInfo>& shop)
 				saleMap[shopInfo.itemId] = count;
 			}
 		}
-	} else {
+	}
+	else {
 		// Large shop, it's better to get a cached map of all item counts and use it
 		// We need a temporary map since the finished map should only contain items
 		// available in the shop
@@ -1706,14 +1725,16 @@ void ProtocolGame::sendSaleItemList(const std::list<ShopInfo>& shop)
 				uint32_t count;
 				if (itemType.isFluidContainer() || itemType.isSplash()) {
 					count = player->getItemTypeCount(shopInfo.itemId, subtype); // This shop item requires extra checks
-				} else {
+				}
+				else {
 					count = subtype;
 				}
 
 				if (count > 0) {
 					saleMap[shopInfo.itemId] = count;
 				}
-			} else {
+			}
+			else {
 				std::map<uint32_t, uint32_t>::const_iterator findIt = tempSaleMap.find(shopInfo.itemId);
 				if (findIt != tempSaleMap.end() && findIt->second > 0) {
 					saleMap[shopInfo.itemId] = findIt->second;
@@ -2876,14 +2897,14 @@ void ProtocolGame::sendOutfitWindow()
 		currentOutfit = newOutfit;
 	}
 
-	/*Mount* currentMount = g_game.mounts.getMountByID(player->getCurrentMount());
+	Mount* currentMount = g_game.mounts.getMountByID(player->getCurrentMount());
 	if (currentMount) {
 		currentOutfit.lookMount = currentMount->clientId;
-	}*/
+	}
 
 	AddOutfit(msg, currentOutfit);
 
-	/*std::vector<ProtocolOutfit> protocolOutfits;
+	std::vector<ProtocolOutfit> protocolOutfits;
 	if (player->isAccessPlayer()) {
 		static const std::string gamemasterOutfitName = "Gamemaster";
 		protocolOutfits.emplace_back(gamemasterOutfitName, 75, 0);
@@ -2897,7 +2918,7 @@ void ProtocolGame::sendOutfitWindow()
 		}
 
 		protocolOutfits.emplace_back(outfit.name, outfit.lookType, addons);
-		if (protocolOutfits.size() == std::numeric_limits<uint8_t>::max()) { // Game client currently doesn't allow more than 255 outfits
+		if (protocolOutfits.size() == 50) { // Game client currently doesn't allow more than 50 outfits
 			break;
 		}
 	}
@@ -2909,6 +2930,7 @@ void ProtocolGame::sendOutfitWindow()
 		msg.addByte(outfit.addons);
 	}
 
+	
 	std::vector<const Mount*> mounts;
 	for (const Mount& mount : g_game.mounts.getMounts()) {
 		if (player->hasMount(&mount)) {
@@ -2920,39 +2942,12 @@ void ProtocolGame::sendOutfitWindow()
 	for (const Mount* mount : mounts) {
 		msg.add<uint16_t>(mount->clientId);
 		msg.addString(mount->name);
-	}*/
-
-	switch (player->getSex()) {
-		case PLAYERSEX_FEMALE: {
-			msg.add<uint16_t>(136);
-			if (player->isPremium()) {
-				msg.add<uint16_t>(142);
-			} else {
-				msg.add<uint16_t>(139);
-			}
-
-			break;
-		}
-
-		case PLAYERSEX_MALE: {
-			msg.add<uint16_t>(128);
-			if (player->isPremium()) {
-				msg.add<uint16_t>(134);
-			} else {
-				msg.add<uint16_t>(131);
-			}
-
-			break;
-		}
-
-		default: {
-			msg.add<uint16_t>(128);
-			msg.add<uint16_t>(134);
-		}
 	}
-
 	writeToOutputBuffer(msg);
 }
+
+
+
 
 void ProtocolGame::sendUpdatedVIPStatus(uint32_t guid, VipStatus_t newStatus)
 {
@@ -3189,12 +3184,12 @@ void ProtocolGame::AddOutfit(NetworkMessage& msg, const Outfit_t& outfit)
 		msg.addByte(outfit.lookBody);
 		msg.addByte(outfit.lookLegs);
 		msg.addByte(outfit.lookFeet);
-		//msg.addByte(outfit.lookAddons);
+		msg.addByte(outfit.lookAddons);
 	} else {
 		msg.addItemId(outfit.lookTypeEx);
 	}
 
-	//msg.add<uint16_t>(outfit.lookMount);
+	msg.add<uint16_t>(outfit.lookMount);
 }
 
 void ProtocolGame::AddWorldLight(NetworkMessage& msg, LightInfo lightInfo)
@@ -3347,4 +3342,30 @@ void ProtocolGame::parseExtendedOpcode(NetworkMessage& msg)
 
 	// process additional opcodes via lua script event
 	addGameTask(&Game::parsePlayerExtendedOpcode, player->getID(), opcode, buffer);
+
+	
+	
+}
+
+// OTCv8
+void ProtocolGame::sendFeatures()
+{
+	if (!otclientV8)
+		return;
+
+	std::map<GameFeature, bool> features;
+	// place for non-standard OTCv8 features
+	features[GameExtendedOpcode] = true;
+
+	if (features.empty())
+		return;
+
+	NetworkMessage msg;
+	msg.addByte(0x43);
+	msg.add<uint16_t>(features.size());
+	for (auto& feature : features) {
+		msg.addByte((uint8_t)feature.first);
+		msg.addByte(feature.second ? 1 : 0);
+	}
+	writeToOutputBuffer(msg);
 }

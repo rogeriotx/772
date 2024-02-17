@@ -217,7 +217,7 @@ class ProtocolGame final : public Protocol
 		void sendCreatureType(uint32_t creatureId, uint8_t creatureType);
 		void sendCreatureHelpers(uint32_t creatureId, uint16_t helpers);
 
-		void sendShop(Npc* npc, const ShopInfoList& itemList);
+		void sendShop(const ShopInfoList& itemList);
 		void sendCloseShop();
 		void sendSaleItemList(const std::list<ShopInfo>& shop);
 		void sendMarketEnter(uint32_t depotId);
@@ -315,6 +315,9 @@ class ProtocolGame final : public Protocol
 		//otclient
 		void parseExtendedOpcode(NetworkMessage& msg);
 
+		//OTCv8
+		void sendFeatures();
+
 		friend class Player;
 
 		// Helpers so we don't need to bind every time
@@ -339,6 +342,7 @@ class ProtocolGame final : public Protocol
 
 		bool debugAssertSent = false;
 		bool acceptPackets = false;
+		uint16_t otclientV8 = 0;
 };
 
 #endif

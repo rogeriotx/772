@@ -44,12 +44,26 @@ std::string Mission::getDescription(Player* player) const
 				}
 			}
 		}
-	} else {
+	}
+	else {
 		for (int32_t current = endValue; current >= startValue; current--) {
 			if (value == current) {
 				auto sit = descriptions.find(current);
 				if (sit != descriptions.end()) {
-					return sit->second;
+					std::string desc = sit->second;
+					size_t statePos = desc.find("|STATE|");
+					while (statePos != std::string::npos) {
+						size_t startPos = statePos + 7; // start looking for value after |STATE|.
+						size_t endPos = desc.find("|", startPos); // find the last digit of the storage
+						if (endPos != std::string::npos) {
+							uint32_t storageValueIdentifier = std::stoul(desc.substr(startPos, endPos - startPos));
+							int32_t IdentifiedStorageValue;
+							player->getStorageValue(storageValueIdentifier, IdentifiedStorageValue);
+							desc.replace(statePos, endPos - statePos + 1, std::to_string(IdentifiedStorageValue));
+						}
+						statePos = desc.find("|STATE|", statePos + 1);
+					}
+					return desc;
 				}
 			}
 		}

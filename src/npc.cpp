@@ -32,9 +32,9 @@ NpcScriptInterface* Npc::scriptInterface = nullptr;
 void Npcs::reload()
 {
 	const std::map<uint32_t, Npc*>& npcs = g_game.getNpcs();
-	/*for (const auto& it : npcs) {
+	for (const auto& it : npcs) {
 		it.second->closeAllShopWindows();
-	}*/
+	}
 
 	delete Npc::scriptInterface;
 	Npc::scriptInterface = nullptr;
@@ -878,7 +878,7 @@ int NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 
 	npc->addShopPlayer(player);
 	player->setShopOwner(npc, buyCallback, sellCallback);
-	player->openShopWindow(npc, items);
+	player->openShopWindow(items);
 
 	pushBoolean(L, true);
 	return 1;
@@ -1083,7 +1083,7 @@ int NpcScriptInterface::luaNpcOpenShopWindow(lua_State* L)
 	npc->addShopPlayer(player);
 
 	player->setShopOwner(npc, buyCallback, sellCallback);
-	player->openShopWindow(npc, items);
+	player->openShopWindow(items);
 
 	pushBoolean(L, true);
 	return 1;
